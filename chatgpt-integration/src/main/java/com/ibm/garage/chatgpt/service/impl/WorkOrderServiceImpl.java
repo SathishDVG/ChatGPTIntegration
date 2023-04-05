@@ -16,6 +16,8 @@ import org.springframework.web.client.RestTemplate;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ibm.garage.chatgpt.exception.MaximoAdapterException;
 import com.ibm.garage.chatgpt.model.WorkOrder;
+import com.ibm.garage.chatgpt.model.WorkOrderEntity;
+import com.ibm.garage.chatgpt.service.JoltTransformService;
 import com.ibm.garage.chatgpt.service.WorkOrderService;
 
 @Service
@@ -37,7 +39,11 @@ public class WorkOrderServiceImpl implements WorkOrderService {
 
 	private String maximoEndpoint = "https://run.mocky.io/v3/02041b0d-abac-4453-b638-494b08d92f51";
 
-	private ObjectMapper objectMapper = new ObjectMapper();
+	@Autowired
+	private ObjectMapper objectMapper;
+	
+	@Autowired
+	private JoltTransformService joltTransformService;
 
 	@Override
 	public ResponseEntity<WorkOrder> fetchWorkOrderById(String workOrderId) {
@@ -75,9 +81,12 @@ public class WorkOrderServiceImpl implements WorkOrderService {
 
 	private void saveToMongo(WorkOrder workOrder) {
 		try {
-			mongoTemplate.save(workOrder);
+			// Jolt Transformation
+			String workOrderStr = joltTransformService.transformJson(objectMapper.writeValueAsString(workOrder));
+			WorkOrderEntity workOrderEntity = objectMapper.readValue(workOrderStr, WorkOrderEntity.class);
+			mongoTemplate.save(workOrderEntity);
 			LOGGER.log(Level.SEVERE, "Work order {0} saved to MongoDB", new Object[] { workOrder.getWorkorderid() });
-		} catch (DataAccessException e) {
+		} catch (Exception e) {
 			LOGGER.log(Level.SEVERE, "Failed to save work order {0} to MongoDB",
 					new Object[] { workOrder.getWorkorderid() });
 			throw new MaximoAdapterException("Failed to save work order to MongoDB", e);
